@@ -1,13 +1,22 @@
 import { createLocationPacket } from "../../utils/notification/game.notification.js";
+import LatencyManager from "../managers/latency.manager.js";
 
 class Game {
     constructor(id) {
         this.id = id;
         this.users = [];
+        this.latencyManager = new LatencyManager();
     }
 
     addUser(user) {
+        if (typeof user.ping !== 'function') {
+            console.error('User ping method is not defined:', user);
+            return;
+        }
+        
         this.users.push(user);
+        this.latencyManager.addUser(user.id, user.ping.bind(user), 1000);
+        console.log('User added:', user);
     }
 
     getUser(userId) {
@@ -16,17 +25,32 @@ class Game {
 
     removeUser(socket) {
         const index = this.users.findIndex((user) => user.socket === socket);
-        if (index != -1) {
+        if (index !== -1) {
+            if (this.users.length === 1) {
+                this.latencyManager.clearAll();
+            }
+            this.latencyManager.removeUser(this.users[index].id);
             return this.users.splice(index, 1)[0];
         }
     }
 
-    getAllLocation(userId) {
-        const locationData = this.users
-        .filter((user) => user.id !== userId)
-        .map((user) => {
-            return { id: user.id, playerId: user.playerId, x: user.x, y: user.y };
+    getMaxLatency() {
+        let maxLatency = 0;
+        this.users.forEach((user) => {
+            maxLatency = Math.max(maxLatency, user.latency);
         });
+        return maxLatency;
+    }
+
+    getAllLocation(userId) {
+        const maxLatency = this.getMaxLatency();
+
+        const locationData = this.users
+            .filter((user) => user.id !== userId)
+            .map((user) => {
+                const { x, y } = user.calculatePosition(maxLatency);
+                return { id: user.id, playerId: user.playerId, x, y };
+            });
 
         return createLocationPacket(locationData);
     }

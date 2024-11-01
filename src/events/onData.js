@@ -1,5 +1,7 @@
 import { PACKET_TYPE, PACKET_TYPE_LENGTH, TOTAL_LENGTH } from "../constants/header.js";
 import { getHandlerById } from "../handler/index.js";
+import { getProtoMessages } from "../init/loadProto.js";
+import { getUserBySocket } from "../sessions/users.session.js";
 import { packetParser } from '../utils/parser/packetParser.js';
 
 export const onData = (socket) => (data) => {
@@ -16,21 +18,39 @@ export const onData = (socket) => (data) => {
 
             try {
                 switch (packetType) {
+                    case PACKET_TYPE.PING: {
+                        const protoMessages = getProtoMessages();
+                        const Ping = protoMessages.common.Ping;
+                        const pingPacket = Ping.decode(packet);
+                        const user = getUserBySocket(socket);
+                        
+                        if (user && typeof user.handlePong === 'function') {
+                            user.handlePong(pingPacket);
+                        } else {
+                            console.error('User not found or handlePong is not a function');
+                        }
+                        break; 
+                    }
                     case PACKET_TYPE.NORMAL: {
-                        const { handlerId, userId, payload} = packetParser(packet);
+                        const { handlerId, userId, payload } = packetParser(packet);
                         const handler = getHandlerById(handlerId);
 
-                        handler({ socket, userId, payload });
+                        if (handler) {
+                            handler({ socket, userId, payload });
+                        } else {
+                            console.error(`Handler not found for handlerId: ${handlerId}`);
+                        }
+                        break; 
                     }
-                }  
-            } catch(e) {
-                console.error(e);
+                    default: {
+                        console.error(`Unknown packet type: ${packetType}`);
+                    }
+                }
+            } catch (e) {
+                console.error('Error processing packet:', e);
             }
         } else {
             break;
         }
     }
 };
-
-
-

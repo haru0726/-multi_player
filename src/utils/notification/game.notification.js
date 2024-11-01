@@ -18,6 +18,15 @@ export const createLocationPacket = (users) => {
     const payload = { users };
     const message = location.create(payload);
     const locationPacket = location.encode(message).finish();
-
     return serializer(locationPacket, PACKET_TYPE.LOCATION);
+};
+
+export const createPibgPacket = (timestamp) => {
+    const protoMessages = getProtoMessages();
+    const ping = protoMessages.common.Ping;
+
+    const payload = { timestamp };
+    const message = location.create(payload);
+    const pingPacket = location.encode(message).finish();
+    return serializer(pingPacket, PACKET_TYPE.PING);
 };
