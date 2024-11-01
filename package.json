@@ -1,0 +1,24 @@
+{
+  "name": "multi-player",
+  "version": "1.0.0",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "nodemon": "^3.1.7",
+    "prettier": "^3.3.3"
+  },
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "mysql2": "^3.11.3",
+    "protobufjs": "^7.4.0",
+    "protojs": "^1.0.6",
+    "uuid": "^11.0.1"
+  }
+}

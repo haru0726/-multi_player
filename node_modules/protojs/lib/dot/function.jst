@@ -1,0 +1,419 @@
+'use strict';
+{{# def.definitions }}
+
+/**
+ * - [makeFunction](#makeFunction)
+ * - [partial](#partial)
+ * - [partialRight](#partialRight)
+ * - [memoize](#memoize)
+ * - [delay](#delay)
+ * - [defer](#defer)
+ * - [delayed](#delayed)
+ * - [deferred](#deferred)
+ * - [deferTicks](#deferTicks)
+ * - [delayMethod](#delayMethod)
+ * - [deferMethod](#deferMethod)
+ * - [debounce](#debounce)
+ * - [throttle](#throttle)
+ * - [once](#once)
+ * - [waitFor](#waitFor)
+ * - [not](#not)
+ *
+ * These methods can be [chained](proto.js.html#Proto)
+ */
+module.exports = {
+    makeFunction: makeFunction,
+    partial: partial,
+    partialRight: partialRight,
+    memoize: memoize,
+    delay: delay,
+    defer: defer,
+    delayed: delayed,
+    deferred: deferred,
+    deferTicks: deferTicks,
+    delayMethod: delayMethod,
+    deferMethod: deferMethod,
+    debounce: debounce,
+    throttle: throttle,
+    once: once,
+    waitFor: waitFor,
+    not: not
+};
+
+
+var slice = Array.prototype.slice;
+
+
+/**
+ * Similarly to Function constructor creates a function from code.
+ * Unlike Function constructor, the first argument is a function name
+ *
+ * @param {String} self new function name
+ * @param {String} arg1, arg2, ... the names of function parameters
+ * @param {String} funcBody function body
+ * @return {Function}
+ */
+function makeFunction({{# def.arg }} arg1, arg2, funcBody) {
+    var name = {{# def.self }}
+        , count = arguments.length - 1
+        , funcBody = arguments[count]
+        , code = '';
+    for (var i = {{?it.mode == 'functions'}}1{{??}}0{{?}}; i < count; i++)
+        code += ', ' + arguments[i];
+    code = 'return function ' + name + '(' + code.slice(2) + ') {\n' +
+                funcBody + '\n}';
+    var func = (new Function(code))();
+    {{# def.return:func }}
+}
+
+
+/**
+ * Creates a function as a result of partial function application with the passed parameters.
+ *
+ * @param {Function} self Function to be applied
+ * @param {List} arguments Arguments after self will be prepended to the original function call when the partial function is called.
+ * @return {Function}
+ */
+function partial({{# def.oneArg}}) { // , ... arguments
+    {{# def.varSelf }}
+    {{# def.varArgs }}
+    var func = function() {
+        return self.apply(this, args.concat(slice.call(arguments)));
+    };
+    {{# def.return:func }}
+}
+
+
+/**
+ * Creates a function as a result of partial function application with the passed parameters, but parameters are appended on the right.
+ *
+ * @param {Function} self Function to be applied
+ * @param {List} arguments Arguments after self will be appended on the right to the original function call when the partial function is called.
+ * @return {Function}
+ */
+function partialRight({{# def.oneArg}}) { // , ... arguments
+    {{# def.varSelf }}
+    {{# def.varArgs }}
+    var func = function() {
+        return self.apply(this, slice.call(arguments).concat(args));
+    };
+    {{# def.return:func }}
+}
+
+
+/**
+ * Creates a memoized version of the function using supplied hash function as key. If the hash is not supplied, uses its first parameter as the hash.
+ * 
+ * @param {Function} self function to be memoized
+ * @param {Function} hashFunc optional hash function that is passed all function arguments and should return cache key.
+ * @param {Integer} limit optional maximum number of results to be stored in the cache. 1000 by default.
+ * @return {Function} memoized function
+ */
+function memoize({{# def.arg }} hashFunc, limit) {
+    {{# def.varSelf }}
+    var cache = {}, keysList = [];
+    limit = limit || 1000;
+
+    var func = function() {
+        var key = hashFunc ? hashFunc.apply(this, arguments) : arguments[0];
+        if (cache.hasOwnProperty(key))
+            return cache[key];
+
+        var result = cache[key] = self.apply(this, arguments);
+        keysList.push(key);
+
+        if (keysList.length > limit)
+            delete cache[keysList.shift()];
+
+        return result;
+    };
+
+    {{# def.return:func }}
+}
+
+{{## def._delay:
+    var id = setTimeout(function() { self.apply(null, args); }
+#}}
+
+
+/**
+ * Delays function execution by a given time in milliseconds.
+ * The context in function when it is executed is set to `null`.
+ *
+ * @param {Function} self function that execution has to be delayed
+ * @param {Number} wait approximate dalay time in milliseconds
+ * @param {List} arguments optional arguments that will be passed to the function
+ */
+function delay({{# def.arg }} wait) { // , arguments
+    {{# def.varSelf }}
+    {{# def.restArgs:'1' }}
+    {{# def._delay }}, wait);
+    {{# def.return:id }}
+}
+ 
+
+/**
+ * Defers function execution (executes as soon as execution loop becomes free)
+ * The context in function when it is executed is set to `null`.
+ *
+ * @param {Function} self function that execution has to be delayed
+ * @param {List} arguments optional arguments that will be passed to the function
+ */
+function defer({{# def.oneArg }}) { // , arguments
+    {{# def.varSelf }}
+    {{# def.varArguments }}
+    {{# def._delay }});
+    {{# def.return:id }}
+}
+
+
+{{## def._delayed:
+    var func = function() { // ... arguments
+        var passArgs = args.concat(slice.call(arguments));
+        var context = this;
+        return setTimeout(function() { self.apply(context, passArgs); }
+#}}
+
+
+/**
+ * Returns function that will execute the original function `wait` ms after it has been called
+ * The context in function when it is executed is set to `null`.
+ * Arguments passed to the function are appended to the arguments passed to delayed.
+ *
+ * @param {Function} self function which execution has to be deferred
+ * @param {Number} wait approximate dalay time in milliseconds
+ * @param {List} arguments optional arguments that will be passed to the function
+ * @return {Function}
+ */
+function delayed({{# def.arg }} wait) { //, ... arguments
+    {{# def.varSelf }}
+    {{# def.restArgs:'1' }}
+    {{# def._delayed }}, wait); };
+    {{# def.return:func }}
+}
+
+
+/**
+ * Returns function that will execute the original function on the next tick once it has been called
+ * The context in function when it is executed is set to `null`.
+ * Arguments passed to the function are appended to the arguments passed to deferred.
+ *
+ * @param {Function} self function which execution has to be deferred
+ * @param {List} arguments optional arguments that will be passed to the function
+ * @return {Function}
+ */
+function deferred({{# def.oneArg }}) { //, ... arguments
+    {{# def.varSelf }}
+    {{# def.varArguments }}
+    {{# def._delayed }}); };
+    {{# def.return:func }}
+}
+
+
+/**
+ * Defers function execution for `times` ticks (executes after execution loop becomes free `times` times)
+ * The context in function when it is executed is set to `null`.
+ *
+ * @param {Function} self function that execution has to be delayed
+ * @param {Integer} ticks number of times to defer execution
+ * @param {List} arguments optional arguments that will be passed to the function
+ */
+function deferTicks({{# def.arg }} ticks) { // , arguments
+    {{# def.varSelf }}
+    var id;
+    if (ticks < 2) {
+        {{# def.restArgs:'1' }}
+        id = setTimeout(function() {
+            self.apply(null, args);
+        });
+    } else {
+        var args = arguments;
+        args[{{? it.mode == 'functions' }}1{{??}}0{{?}}] = ticks - 1;
+        id = setTimeout(function() {
+            deferTicks.apply({{? it.mode == 'functions' }}null{{??}}{ self: self }{{?}}, args);
+        });
+    }
+    {{# def.return:id }}
+}
+
+
+{{## def._delayMethod:
+    var func = typeof funcOrMethodName == 'string'
+                ? self[funcOrMethodName]
+                : funcOrMethodName;
+    var id = setTimeout(function() { func.apply(self, args); }
+#}}
+
+
+/**
+ * Works like _.delay but allows to defer method call of `self` which will be the first _.delayMethod parameter
+ *
+ * @param {Object} self object to delay method call of
+ * @param {Function|String} funcOrMethodName function or name of method
+ * @param {Number} wait approximate dalay time in milliseconds
+ * @param {List} arguments arguments to pass to method
+ */
+function delayMethod({{# def.arg }} funcOrMethodName, wait) { // , ... arguments
+    {{# def.varSelf }}
+    {{# def.restArgs:'2' }}
+    {{# def._delayMethod }}, wait);
+    {{# def.return:id }}
+}
+
+
+/**
+ * Works like _.defer but allows to defer method call of `self` which will be the first _.deferMethod parameter
+ *
+ * @param {Object} self object to defer method call of
+ * @param {Function|String} funcOrMethodName function or name of method
+ * @param {List} arguments arguments to pass to method
+ */
+function deferMethod({{# def.arg }} funcOrMethodName) { // , ... arguments
+    {{# def.varSelf }}
+    {{# def.restArgs:'1' }}
+    {{# def._delayMethod }});
+    {{# def.return:id }}
+}
+
+
+/**
+ * Creates a function that will call original function once it has not been called for a specified time
+ *
+ * @param {Function} self function that execution has to be delayed
+ * @param {Number} wait approximate dalay time in milliseconds
+ * @param {Boolean} immediate true to invoke funciton immediately and then ignore following calls for wait milliseconds
+ * @return {Function}
+ */
+function debounce({{# def.arg }} wait, immediate) {
+    {{# def.varSelf }}
+    var timeout, args, context, timestamp, result;
+    var func = function() {
+        context = this; // store original context
+        args = arguments;
+        timestamp = Date.now();
+        var callNow = immediate && ! timeout;
+        if (! timeout)
+            timeout = setTimeout(later, wait);
+        if (callNow)
+            result = self.apply(context, args);
+        return result;
+
+        function later() {
+            var last = Date.now() - timestamp;
+            if (last < wait)
+                timeout = setTimeout(later, wait - last);
+            else {
+                timeout = null;
+                if (! immediate)
+                    result = self.apply(context, args);
+            }
+        }
+    };
+
+    {{# def.return:func }}
+}
+
+
+/**
+ * Returns a function, that, when invoked, will only be triggered at most once during a given window of time. 
+ *
+ * @param {Function} self function that execution has to be delayed
+ * @param {Number} wait approximate delay time in milliseconds
+ * @param {Object} options `{leading: false}` to disable the execution on the leading edge
+ * @return {Function}
+ */
+function throttle({{# def.arg }} wait, options) {
+    {{# def.varSelf }}
+    var context, args, result;
+    var timeout = null;
+    var previous = 0;
+    options || (options = {});
+
+    var func = function() {
+        var now = Date.now();
+        if (!previous && options.leading === false) previous = now;
+        var remaining = wait - (now - previous);
+        context = this;
+        args = arguments;
+        if (remaining <= 0) {
+            clearTimeout(timeout);
+            timeout = null;
+            previous = now;
+            result = self.apply(context, args);
+        } else if (!timeout && options.trailing !== false)
+            timeout = setTimeout(later, remaining);
+
+        return result;
+    };
+
+    {{# def.return:func }}
+
+    function later() {
+        previous = options.leading === false ? 0 : Date.now();
+        timeout = null;
+        result = self.apply(context, args);
+    }
+}
+
+
+/**
+ * Call passed function only once
+ * @return {Function} self
+ */
+function once({{# def.oneArg }}) {
+    {{# def.varSelf }}
+    var ran = false
+        , memo;
+
+    var func = function() {
+        if (ran) return memo;
+        ran = true;
+        memo = self.apply(this, arguments);
+        self = null;
+        return memo;
+    };
+
+    {{# def.return:func }}
+}
+
+
+/**
+ * Execute a function when the condition function returns a truthy value
+ * it runs the condition function every `checkInterval` milliseconds (default 50)
+ *
+ * @param {Function} self function: if it returns true the callback is executed
+ * @param {Function} callback runs when the condition is true
+ * @param {Number} maxTimeout timeout before giving up (time in milliseconds)
+ * @param {Function} timedOutFunc a function called if timeout is reached
+ * @param {Number} checkInterval time interval when you run the condition function (time in milliseconds), default 50 ms
+ */
+function waitFor({{# def.arg }} callback, maxTimeout, timedOutFunc, checkInterval){
+    {{# def.varSelf }}
+    var start = Date.now();
+    checkInterval = checkInterval || 50;
+    var id = setInterval(testCondition, checkInterval);
+    {{# def.return:id }}
+
+    function testCondition() {
+        if (self()) callback();
+        else if (Date.now() - start >= maxTimeout)
+            timedOutFunc && timedOutFunc();
+        else return;
+        clearInterval(id);
+    };
+}
+
+
+/**
+ * returns the function that negates (! operator) the result of the original function
+ * @param {Function} self function to negate
+ * @return {Function}
+ */
+function not({{# def.oneArg }}) {
+    {{# def.varSelf }}
+    var func = function() {
+        return !self.apply(this, arguments);
+    };
+    {{# def.return:func }}
+}
+

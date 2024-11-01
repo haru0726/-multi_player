@@ -1,0 +1,273 @@
+'use strict';
+{{# def.definitions }}
+
+/**
+ * - [find](#find)
+ * - [findIndex](#findIndex)
+ * - [appendArray](#appendArray)
+ * - [prependArray](#prependArray)
+ * - [spliceItem](#spliceItem)
+ * - [toArray](#toArray)
+ * - [object](#object)
+ * - [mapToObject](#mapToObject)
+ * - [unique](#unique)
+ * - [deepForEach](#deepForEach)
+ *
+ * These methods can be [chained](proto.js.html#Proto).
+ */
+module.exports = {
+    find: find,
+    findIndex: findIndex,
+    appendArray: appendArray,
+    prependArray: prependArray,
+    toArray: toArray,
+    object: object,
+    mapToObject: mapToObject,
+    unique: unique,
+    deepForEach: deepForEach,
+    spliceItem: spliceItem
+};
+
+
+/**
+ * Functions that Array [implements natively](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/prototype#Methods) are also included for convenience - they can be used with array-like objects and for chaining (native functions are always called).
+ * These functions can be [chained](proto.js.html#Proto) too.
+ */
+var nativeMethods = [ 'join', 'pop', 'push', 'concat',
+    'reverse', 'shift', 'unshift', 'slice', 'splice',
+    'sort', 'filter', 'forEach', 'some', 'every',
+    'map', 'indexOf', 'lastIndexOf', 'reduce', 'reduceRight',
+    'find', 'findIndex' ];
+
+
+{{# def.iter: nativeMethods }} {
+    var name = nativeMethods[i];
+    var nativeFunc = Array.prototype[name];
+    if (!nativeFunc) continue;
+    module.exports[name] = (function (method) {
+        {{? it.mode == 'methods' }}
+            return function() {
+                this.self = method.apply(this.self, arguments);
+                return this;
+            };
+        {{??}}
+            return function() {
+                return method.call.apply(method, arguments);
+            };
+        {{?}}
+    })(nativeFunc);
+}
+
+
+{{## def.find:params:
+    {{# def.varSelf }}
+    {{# def.iter:self }} {
+        var item = self[i];
+        if (callback.call(thisArg, item, i, self)) {
+            {{# def.intReturn:params.result }}
+        }
+    }
+    {{# def.intReturn:params.notFound }}
+#}}
+
+/**
+ * Implementation of ES6 [Array __find__ method](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/find) (native method is used if available).
+ * Returns array element that passes callback test.
+ *
+ * @param {Array} self array to search in
+ * @param {Function} callback should return `true` for item to pass the test, passed `value`, `index` and `self` as parameters
+ * @param {Object} thisArg optional context (`this`) of callback call
+ * @return {Any}
+ */
+function find({{# def.arg }} callback, thisArg) {
+    {{ var params = { result: 'item', notFound: 'undefined' }; }}
+    {{# def.find:params }}
+}
+
+
+/**
+ * Implementation of ES6 [Array __findIndex__ method](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/findIndex) (native method is used if available).
+ * Returns the index of array element that passes callback test. Returns `-1` if not found.
+ *
+ * @param {Array} self array to search in
+ * @param {Function} callback should return `true` for item to pass the test, passed `value`, `index` and `self` as parameters
+ * @param {Object} thisArg optional context (`this`) of callback call
+ * @return {Integer}
+ */
+function findIndex({{# def.arg }} callback, thisArg) {
+    {{ var params = { result: 'i', notFound: '-1' }; }}
+    {{# def.find:params }}
+}
+
+
+{{## def.appendFunc:_index:
+    if (!sourceArr.length) return {{#def.this}};
+    if (!Array.isArray(sourceArr))
+        sourceArr = {{# def.toArray:sourceArr }};
+    
+    var args = [_index, 0].concat(sourceArr);
+    Array.prototype.splice.apply({{#def.self}}, args);
+
+    return {{#def.this}};
+#}}
+
+
+/**
+ * Appends `sourceArr` to the end of array `self` in place (can be an instance of Array or array-like object).
+ * Changes the value of `self` (it uses `Array.prototype.splice`) and returns `self`.
+ *
+ * @param {Array} self An array that will be modified
+ * @param {Array} sourceArr An array that will be appended
+ * @return {Array}
+ */
+function appendArray({{# def.arg }} sourceArr) {
+    {{? it.mode == 'methods' }}
+        {{# def.appendFunc: this.self.length }}
+    {{??}}
+        {{# def.appendFunc: self.length }}
+    {{?}}
+}
+
+
+/**
+ * Prepends `sourceArr` to the beginnig of array `self` in place (can be an instance of Array or array-like object).
+ * Changes the value of `self` (it uses `Array.prototype.splice`) and returns `self`.
+ *
+ * @param {Array} self An array that will be modified
+ * @param {Array} sourceArr An array that will be prepended
+ * @return {Array}
+ */
+function prependArray({{# def.arg }} sourceArr) {
+    {{# def.appendFunc: 0 }}
+}
+
+
+/**
+ * Returns new array created from array-like object (e.g., `arguments` pseudo-array).
+ *
+ * @param {PseudoArray} self Object with numeric property length
+ * @return {Array}
+ */
+function toArray({{# def.oneArg }}) {
+    {{? it.mode == 'methods' }}
+        this.self = {{# def.toArray:this.self }};
+        return this;
+    {{??}}
+        return {{# def.toArray:self }};
+    {{?}}
+}
+
+
+/**
+ * Returns an object created from the array of `keys` and optional array of `values`.
+ *
+ * @param {Array} self Array of keys
+ * @param {Array|any} values Optional array of values or the value to be assigned to each property.
+ * @return {Object}
+ */
+function object({{# def.arg }} values) {
+    var obj = {};
+    var valuesIsArray = Array.isArray(values);
+
+    {{# def.varSelf }}
+    {{# def.iter:self }} obj[self[i]] = valuesIsArray ? values[i] : values;
+    {{# def.return:obj }}
+}
+
+
+/**
+ * Maps array to object.
+ * Array elements become keys, value are taken from `callback`.
+ * 
+ * @param {Array} self An array which values will become keys of the result
+ * @param {Function} callback Callback is passed `value`, `index` and `self` and should return value that will be included in the result.
+ * @param {Object} thisArg An optional context of iteration (the valueof `this`), will be undefined if this parameter is not passed.
+ * @return {Object}
+ */
+function mapToObject({{# def.arg }} callback, thisArg) {
+    var obj = {};
+
+    {{# def.varSelf }}
+    {{# def.iter:self }} {
+        var value = self[i];
+        obj[value] = callback.call(thisArg, value, i, self);
+    }
+    {{# def.return:obj }}
+}
+
+
+/**
+ * Returns array without duplicates. Does not modify original array.
+ *
+ * @param {Array} self original array
+ * @param {Function} callback comparison function, should return true for equal items, "===" is used if not passed.
+ * @return {Array}
+ */
+function unique({{# def.arg }} callback) {
+    {{## def.uniqueIter:
+        {{# def.iter:self }} {
+            var item = self[i];
+    #}}
+    {{## def.uniqueAdd:
+            if (index == -1) filtered[filtered.length] = item;
+        }
+    #}}
+
+    var filtered = [];
+
+    {{# def.varSelf }}
+    if (callback) {
+        {{# def.uniqueIter }}
+            var index = -1;
+            {{# def.iter2:filtered }} {
+                if (callback(item, filtered[j])) {
+                    index = i;
+                    break;
+                }
+            }
+        {{# def.uniqueAdd }}
+    } else {
+        {{# def.uniqueIter }}
+            var index = filtered.indexOf(item);
+        {{# def.uniqueAdd }}
+    }
+
+    {{# def.return:filtered }}
+}
+
+
+/**
+ * Iterates array and elements that are arrays calling callback with each element that is not an array. Can be used to iterate over arguments list to avoid checking whether array or list of parameters is passed.
+ *
+ * @param {Array} self array of elements and arraysto iterate.
+ * @param {Function} callback called for each item that is not an array. Callback is passed item, index and original array as parameters.
+ * @param {Any} thisArg optional callback envocation context
+ */
+function deepForEach({{# def.arg }} callback, thisArg) {
+    {{# def.varSelf }}
+    var index = 0;
+    _deepForEach(self);
+
+    function _deepForEach(arr) {
+        {{# def.iter:arr }} {
+            var item = arr[i];
+            if (Array.isArray(item)) _deepForEach(item, callback, thisArg);
+            else callback.call(thisArg, item, index++, self);
+        }
+    }
+}
+
+
+/**
+ * Removes item from array that is found using indexOf (i.e. '===')
+ * Modifies original array and returns the reference to it.
+ * 
+ * @param {Array} self An array that will be modified
+ * @param  {Any} item item to be removed
+ * @return {Array}
+ */
+function spliceItem({{# def.arg }} item) {
+    var index = {{#def.self}}.indexOf(item);
+    if (index >= 0) {{#def.self}}.splice(index, 1);
+    return {{#def.this}};
+}
